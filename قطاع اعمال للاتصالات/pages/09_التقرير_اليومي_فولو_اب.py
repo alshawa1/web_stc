@@ -395,8 +395,8 @@ with st.spinner("🔄 جاري ربط الملفات الثلاثة وتجهيز
             
             v_y = str(row.get('_disc_year', '')).strip()
             if v_y and v_y != 'غير محدد':
-                if k_debt and k_debt not in debt_to_year: debt_to_year[k_debt] = v_y
-                if k_cid and k_cid not in cid_to_year: cid_to_year[k_cid] = v_y
+                if k_debt: debt_to_year[k_debt] = v_y
+                if k_cid: cid_to_year[k_cid] = v_y
 
     # ربط السدادات الأساسي برقم المديونية مع fallback برقم الهوية
     df_pay_clean['_portfolio']    = df_pay_clean[PAY_DEBT_ID].apply(clean_id).map(debt_to_portfolio)
@@ -416,7 +416,7 @@ with st.spinner("🔄 جاري ربط الملفات الثلاثة وتجهيز
         df_pay_clean['_disc_year'] = df_pay_clean['_disc_year'].fillna(df_pay_clean[PAY_CID].apply(clean_id).map(cid_to_year))
     df_pay_clean['_disc_year']    = df_pay_clean['_disc_year'].fillna('غير محدد')
 
-    # ── 4. تنظيف المحفظة الموزعة وملء المحفظة الناقصة بالربط بالمديونية ثم الهوية ──
+    # ── 4. تنظيف المحفظة الموزعة وملء المحفظة وعمر الدين الناقص بالربط بالمديونية ثم الهوية ──
     df_dist_clean = df_dist.copy()
     if DIST_DEBT_AMT:
         df_dist_clean[DIST_DEBT_AMT] = to_clean_num(df_dist_clean[DIST_DEBT_AMT])
@@ -450,6 +450,28 @@ with st.spinner("🔄 جاري ربط الملفات الثلاثة وتجهيز
             df_dist_clean[DIST_PORTFOLIO] = df_dist_clean[DIST_PORTFOLIO].replace(['nan', 'None', 'NaN', '', None], np.nan).fillna('غير محدد')
 
         df_dist_clean[DIST_PORTFOLIO] = df_dist_clean[DIST_PORTFOLIO].astype(str).str.strip()
+
+    # استكمال سنة فصل الخدمة (عمر الدين) الناقص في الموزعة من المجمعة
+    if '_disc_year' in df_dist_clean.columns:
+        is_missing_disc = (
+            df_dist_clean['_disc_year'].isna() |
+            df_dist_clean['_disc_year'].astype(str).str.strip().isin(['', 'nan', 'None', 'NaN', 'غير محدد'])
+        )
+        if is_missing_disc.any():
+            if DIST_DEBT_ID:
+                fill_disc_debt = df_dist_clean.loc[is_missing_disc, DIST_DEBT_ID].map(debt_to_year)
+                df_dist_clean.loc[is_missing_disc, '_disc_year'] = fill_disc_debt
+
+            still_missing_disc = (
+                df_dist_clean['_disc_year'].isna() |
+                df_dist_clean['_disc_year'].astype(str).str.strip().isin(['', 'nan', 'None', 'NaN', 'غير محدد'])
+            )
+            if still_missing_disc.any() and DIST_CID:
+                fill_disc_cid = df_dist_clean.loc[still_missing_disc, DIST_CID].map(cid_to_year)
+                df_dist_clean.loc[still_missing_disc, '_disc_year'] = fill_disc_cid
+
+            df_dist_clean['_disc_year'] = df_dist_clean['_disc_year'].replace(['nan', 'None', 'NaN', '', None], np.nan).fillna('غير محدد')
+        df_dist_clean['_disc_year'] = df_dist_clean['_disc_year'].astype(str).str.strip()
 
     # ── 5. قائمة المحافظ الموجودة في المحفظة الموزعة ──
     raw_ports = df_dist_clean[DIST_PORTFOLIO].dropna().unique().tolist() if DIST_PORTFOLIO else []
@@ -724,18 +746,27 @@ port_table_display = pd.concat([port_table, pd.DataFrame([total_row])], ignore_i
 #  حساب جدول عمر الدين المستقل (Vintage Table)
 # ══════════════════════════════════════════════════════
 if DIST_CID and DIST_DEBT_AMT and '_disc_year' in df_dist_clean.columns:
+    # 1. تجميع التحصيلات أولاً للسنوات التي تم تحصيل مبالغ منها بالفعل فقط
+    df_pay_actual = df_pay_filtered[df_pay_filtered[PAY_AMOUNT] > 0] if PAY_AMOUNT in df_pay_filtered.columns else df_pay_filtered
+    
+    v_pay = df_pay_actual.groupby('_disc_year').agg(
+        اجمالي_التحصيل=(PAY_AMOUNT, 'sum')
+    ).reset_index()
+    v_pay.columns = ['عمر الدين (سنة فصل الخدمة)', 'إجمالي التحصيل']
+    # حصر الجدول على السنوات التي تم تحصيل مبالغ منها بالفعل
+    v_pay = v_pay[(v_pay['إجمالي التحصيل'] > 0) & (v_pay['عمر الدين (سنة فصل الخدمة)'].astype(str).str.strip().isin(['', 'nan', 'None', 'NaN', 'غير محدد']) == False)]
+    
+    # 2. تجميع المديونيات وعدد العملاء من المحفظة الموزعة
     v_dist = df_dist_filtered.groupby('_disc_year').agg(
         عدد_العملاء=(DIST_CID, 'nunique'),
         اجمالي_المديونية=(DIST_DEBT_AMT, 'sum')
     ).reset_index()
     v_dist.columns = ['عمر الدين (سنة فصل الخدمة)', 'عدد العملاء', 'إجمالي المديونية']
     
-    v_pay = df_pay_filtered.groupby('_disc_year').agg(
-        اجمالي_التحصيل=(PAY_AMOUNT, 'sum')
-    ).reset_index()
-    v_pay.columns = ['عمر الدين (سنة فصل الخدمة)', 'إجمالي التحصيل']
+    # 3. دمج التحصيلات مع مديونيات المحفظة (فقط للسنوات التي تم التحصيل منها في شيت السدادات)
+    vintage_df = v_pay.merge(v_dist, on='عمر الدين (سنة فصل الخدمة)', how='left').fillna(0)
+    vintage_df = vintage_df[['عمر الدين (سنة فصل الخدمة)', 'عدد العملاء', 'إجمالي المديونية', 'إجمالي التحصيل']]
     
-    vintage_df = v_dist.merge(v_pay, on='عمر الدين (سنة فصل الخدمة)', how='outer').fillna(0)
     vintage_df['نسبة التحصيل %'] = vintage_df.apply(
         lambda r: round(r['إجمالي التحصيل'] / r['إجمالي المديونية'] * 100, 1) if r.get('إجمالي المديونية', 0) > 0 else 0.0, axis=1
     )
