@@ -194,13 +194,20 @@ def detect_col(df, candidates):
                 return col
     return None
 
+# قوائم مرادفات تاريخ فصل الخدمة / عمر الدين
+DISC_CANDIDATES = [
+    "تاريخ فصل الخدمة", "فصل الخدمة", "تاريخ فصل الخدمه", "تاريخ الفصل", 
+    "عمر الدين", "سنة فصل الخدمة", "سنة الفصل", "سنة الانقطاع",
+    "disconnection_date", "disconnect_date", "disc_date", "vintage"
+]
+
 # المحفظة المجمعة
 MASTER_DEBT_ID     = detect_col(df_master, ["رقم المديونية","رقم المديوني","debt_id"])
 MASTER_CID         = detect_col(df_master, ["رقم الهوية","رقم هوية","الهوية","customer_id"])
 MASTER_DEBT_AMT    = detect_col(df_master, ["مبلغ المديونية","مبلغ الميدونيه","مبلغ الميدونية","debt_amount"])
 MASTER_PORTFOLIO   = detect_col(df_master, ["المحفظة","المحافظ","محفظه","portfolio"])
 MASTER_ASSIGN_DATE = detect_col(df_master, ["تاريخ الاسناد","تاريخ الإسناد","تاريخ التوزيع","assignment_date"])
-MASTER_DISC_DATE   = detect_col(df_master, ["تاريخ فصل الخدمة","فصل الخدمة","تاريخ فصل الخدمه","disconnection_date","disconnect_date"])
+MASTER_DISC_DATE   = detect_col(df_master, DISC_CANDIDATES)
 MASTER_SUP         = detect_col(df_master, ["المشرف","اسم المشرف","supervisor"])
 MASTER_COL         = detect_col(df_master, ["المحصل","اسم المحصل","collector"])
 
@@ -210,7 +217,7 @@ DIST_CID         = detect_col(df_dist, ["رقم الهوية","رقم هوية",
 DIST_DEBT_AMT    = detect_col(df_dist, ["مبلغ المديونية","مبلغ الميدونيه","مبلغ الميدونية","debt_amount"])
 DIST_PORTFOLIO   = detect_col(df_dist, ["المحفظة","المحافظ","محفظه","portfolio"])
 DIST_ASSIGN_DATE = detect_col(df_dist, ["تاريخ الاسناد","تاريخ الإسناد","تاريخ التوزيع","assignment_date"])
-DIST_DISC_DATE   = detect_col(df_dist, ["تاريخ فصل الخدمة","فصل الخدمة","تاريخ فصل الخدمه","disconnection_date","disconnect_date"])
+DIST_DISC_DATE   = detect_col(df_dist, DISC_CANDIDATES)
 DIST_SUP         = detect_col(df_dist, ["المشرف","اسم المشرف","supervisor"])
 DIST_COL         = detect_col(df_dist, ["المحصل","اسم المحصل","collector"])
 
@@ -220,6 +227,7 @@ PAY_CID         = detect_col(df_pay, ["رقم الهوية","رقم هوية","�
 PAY_AMOUNT      = detect_col(df_pay, ["مبلغ السداد","مبلغ الدفع","payment_amount","المبلغ"])
 PAY_DATE        = detect_col(df_pay, ["تاريخ السداد","تاريخ الدفع","payment_date","التاريخ"])
 PAY_ASSIGN_DATE = detect_col(df_pay, ["تاريخ الاسناد","تاريخ الإسناد","تاريخ التوزيع","assignment_date"])
+PAY_DISC_DATE   = detect_col(df_pay, DISC_CANDIDATES)
 PAY_SUP         = detect_col(df_pay, ["المشرف","اسم المشرف","supervisor"])
 PAY_COL         = detect_col(df_pay, ["اسم المحصل","المحصل","collector"])
 
@@ -249,6 +257,7 @@ with st.expander("🔍 الأعمدة المكتشفة تلقائياً (انق�
         PAY_AMOUNT      = st.selectbox("مبلغ السداد",    df_pay.columns.tolist(), index=df_pay.columns.tolist().index(PAY_AMOUNT) if PAY_AMOUNT else 0,   key="p_amount")
         PAY_DATE        = st.selectbox("تاريخ السداد",   df_pay.columns.tolist(), index=df_pay.columns.tolist().index(PAY_DATE) if PAY_DATE else 0,     key="p_date")
         PAY_ASSIGN_DATE = st.selectbox("تاريخ الإسناد",  df_pay.columns.tolist(), index=df_pay.columns.tolist().index(PAY_ASSIGN_DATE) if PAY_ASSIGN_DATE else 0, key="p_assign_dt")
+        PAY_DISC_DATE   = st.selectbox("تاريخ فصل الخدمة (عمر الدين)", [None] + df_pay.columns.tolist(), index=(df_pay.columns.tolist().index(PAY_DISC_DATE) + 1) if PAY_DISC_DATE and PAY_DISC_DATE in df_pay.columns else 0, key="p_disc_dt")
         PAY_SUP         = st.selectbox("المشرف",         df_pay.columns.tolist(), index=df_pay.columns.tolist().index(PAY_SUP) if PAY_SUP else 0,      key="p_sup")
         PAY_COL         = st.selectbox("اسم المحصل",     df_pay.columns.tolist(), index=df_pay.columns.tolist().index(PAY_COL) if PAY_COL else 0,      key="p_col")
 
@@ -286,14 +295,47 @@ def extract_assignment_month_series(series):
     return months.apply(lambda m: f"شهر {int(m)}" if pd.notna(m) and m > 0 else "غير محدد")
 
 def extract_disconnection_year_series(series):
-    """يستخرج سنة فصل الخدمة لعمر الدين بصيغة '2023', '2022', ..."""
+    """يستخرج سنة فصل الخدمة لعمر الدين بمرونة وذكاء كامل يدعم أرقام إكسيل والتواريخ النصية"""
     if series is None or series.empty:
         return pd.Series(dtype=str)
-    parsed = pd.to_datetime(series, errors='coerce', dayfirst=False)
-    if parsed.isna().mean() > 0.4:
-        parsed = pd.to_datetime(series, errors='coerce', dayfirst=True)
-    years = parsed.dt.year
-    return years.apply(lambda y: f"{int(y)}" if pd.notna(y) and y > 1900 else "غير محدد")
+    
+    import re
+
+    def _parse_single_year(val):
+        if pd.isna(val) or val is None:
+            return "غير محدد"
+        s = str(val).strip()
+        if not s or s.lower() in ("none", "nan", "null", "-", "غير محدد", "0", "0.0"):
+            return "غير محدد"
+        
+        # 1. إذا كان رقم إكسيل تسلسلي (Excel serial date كـ 44500) أو سنة مباشرة (كـ 2021)
+        try:
+            f = float(s)
+            if 30000 <= f <= 65000:
+                dt = pd.to_datetime(f, unit='D', origin='1899-12-30')
+                return str(dt.year)
+            elif 1980 <= f <= 2035:
+                return str(int(f))
+        except:
+            pass
+        
+        # 2. بحث بـ Regex عن أي سنة رباعية تبدأ بـ 19 أو 20
+        m = re.search(r'\b(19[89]\d|20[0-3]\d)\b', s)
+        if m:
+            return m.group(1)
+            
+        # 3. محاولة بـ pd.to_datetime
+        for dfmt in [False, True]:
+            try:
+                dt = pd.to_datetime(s, errors='coerce', dayfirst=dfmt)
+                if pd.notna(dt) and 1980 <= dt.year <= 2035:
+                    return str(dt.year)
+            except:
+                pass
+                
+        return "غير محدد"
+
+    return series.apply(_parse_single_year)
 
 def month_sort_key(m_str):
     try:
@@ -414,6 +456,8 @@ with st.spinner("🔄 جاري ربط الملفات الثلاثة وتجهيز
     df_pay_clean['_disc_year']    = df_pay_clean[PAY_DEBT_ID].apply(clean_id).map(debt_to_year)
     if PAY_CID and PAY_CID in df_pay_clean.columns:
         df_pay_clean['_disc_year'] = df_pay_clean['_disc_year'].fillna(df_pay_clean[PAY_CID].apply(clean_id).map(cid_to_year))
+    if PAY_DISC_DATE and PAY_DISC_DATE in df_pay_clean.columns:
+        df_pay_clean['_disc_year'] = df_pay_clean['_disc_year'].fillna(extract_disconnection_year_series(df_pay_clean[PAY_DISC_DATE]))
     df_pay_clean['_disc_year']    = df_pay_clean['_disc_year'].fillna('غير محدد')
 
     # ── 4. تنظيف المحفظة الموزعة وملء المحفظة وعمر الدين الناقص بالربط بالمديونية ثم الهوية ──
