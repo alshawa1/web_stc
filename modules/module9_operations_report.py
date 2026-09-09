@@ -67,39 +67,115 @@ _RE_US_DATE  = re.compile(r"^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})")
 _RE_ISO_DATE = re.compile(r"^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})")
 
 
+def _detect_and_normalize_date_series(raw_list: List[Any]) -> List[str]:
+    """
+    تحويل وفحص قائمة التواريخ بمرونة كاملة:
+    - فحص عينة لكشف هل النسق الأمريكي M/D/YYYY أم القياسي D/M/YYYY
+    - دعم أرقام إكسيل التسلسلية وتواريخ ISO والنصوص التي تحوي أوقاتاً
+    """
+    has_first_gt_12 = False
+    has_second_gt_12 = False
+    for v in raw_list[:2500]:
+        if not v:
+            continue
+        s = str(v).strip()
+        m = _RE_US_DATE.match(s)
+        if m:
+            p1, p2 = int(m.group(1)), int(m.group(2))
+            if p1 > 12:
+                has_first_gt_12 = True
+            if p2 > 12:
+                has_second_gt_12 = True
+            if has_first_gt_12 or has_second_gt_12:
+                break
+
+    is_us_format = has_second_gt_12 and not has_first_gt_12
+
+    norm = []
+    for v in raw_list:
+        if v is None:
+            norm.append("")
+            continue
+        if isinstance(v, (datetime, date)):
+            norm.append(v.strftime("%Y-%m-%d"))
+            continue
+        s = str(v).strip()
+        if not s or s.lower() in ("none", "nan", "null", "-", "غير محدد"):
+            norm.append("")
+            continue
+
+        # رقم إكسيل تسلسلي
+        try:
+            f = float(s)
+            if 30000 <= f <= 65000:
+                dt = datetime.fromordinal(datetime(1899, 12, 30).toordinal() + int(f))
+                norm.append(dt.strftime("%Y-%m-%d"))
+                continue
+        except:
+            pass
+
+        # ISO YYYY-MM-DD
+        m_iso = _RE_ISO_DATE.match(s)
+        if m_iso:
+            y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+            norm.append(f"{y:04d}-{m:02d}-{d:02d}")
+            continue
+
+        m = _RE_US_DATE.match(s)
+        if m:
+            p1, p2, yr = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if is_us_format:
+                mo, da = p1, p2
+            elif has_first_gt_12:
+                da, mo = p1, p2
+            elif p1 > 12:
+                da, mo = p1, p2
+            elif p2 > 12:
+                mo, da = p1, p2
+            else:
+                mo, da = (p1, p2) if is_us_format else (p2, p1)
+            norm.append(f"{yr:04d}-{mo:02d}-{da:02d}")
+            continue
+
+        norm.append(s[:10])
+    return norm
+
+
 def _normalize_date_val(val: Any) -> str:
-    if val is None:
-        return ""
-    if isinstance(val, (datetime, date)):
-        return val.strftime("%Y-%m-%d")
-    v = str(val).strip()
-    if not v or v in ("-", "None", "null", "nan"):
-        return ""
-
-    m2 = _RE_ISO_DATE.match(v)
-    if m2:
-        y, m, d = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
-        return f"{y:04d}-{m:02d}-{d:02d}"
-
-    m = _RE_US_DATE.match(v)
-    if m:
-        p1, p2, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if p1 > 12:
-            d, m = p1, p2
-        elif p2 > 12:
-            d, m = p2, p1
-        else:
-            d, m = p1, p2  # Standard DD/MM/YYYY
-        return f"{y:04d}-{m:02d}-{d:02d}"
-
-    return v[:10]
+    res = _detect_and_normalize_date_series([val])
+    return res[0] if res else ""
 
 
 class OperationsReportModule:
     """
     مركز تقارير العمليات:
-    ربط المحفظة بالسدادات برقم المديونية وحساب التغطية والتحصيل والمستهدفات.
+    ربط المحفظة بالسدادات برقم المديونية وحساب التغطية (كعدد عملاء فريدين) والتحصيل والمستهدفات.
     """
+
+    @staticmethod
+    def detect_available_dates(portfolio: pl.DataFrame) -> Dict[str, Any]:
+        """كشف التواريخ والأشهر المتاحة في عمود تاريخ المتابعة بالمحفظة"""
+        if portfolio is None or len(portfolio) == 0:
+            return {"dates": [], "latest_date": None, "top_date": None, "months": []}
+        followup_col = _detect(portfolio, _FOLLOWUP_DATE_COLS)
+        if not followup_col or followup_col not in portfolio.columns:
+            return {"dates": [], "latest_date": None, "top_date": None, "months": []}
+        raw_dates = portfolio[followup_col].drop_nulls().to_list()
+        norm_dates = [d for d in _detect_and_normalize_date_series(raw_dates) if d and re.match(r"^\d{4}-\d{2}-\d{2}$", d)]
+        if not norm_dates:
+            return {"dates": [], "latest_date": None, "top_date": None, "months": []}
+        from collections import Counter
+        counts = Counter(norm_dates)
+        sorted_dates = sorted(counts.keys(), reverse=True)
+        top_date = counts.most_common(1)[0][0] if counts else sorted_dates[0]
+        months = sorted(list(set(d[:7] for d in sorted_dates)), reverse=True)
+        return {
+            "dates": sorted_dates,
+            "latest_date": sorted_dates[0],
+            "top_date": top_date,
+            "months": months,
+            "date_counts": counts
+        }
 
     @staticmethod
     def get_filter_options(portfolio: pl.DataFrame) -> Dict[str, List[str]]:
@@ -140,6 +216,7 @@ class OperationsReportModule:
 
         # 1. كشف الأعمدة الحيوية في المحفظة
         debt_col_port = _detect(portfolio, _DEBT_COLS)
+        cid_col_port  = _detect(portfolio, _ID_COLS)
         sup_col       = _detect(portfolio, _SUPERVISOR_COLS)
         col_col       = _detect(portfolio, _COLLECTOR_COLS)
         followup_col  = _detect(portfolio, _FOLLOWUP_DATE_COLS)
@@ -164,7 +241,7 @@ class OperationsReportModule:
 
         if followup_col and followup_col in df_p.columns:
             raw_dates = df_p[followup_col].to_list()
-            norm_dates = [_normalize_date_val(d) for d in raw_dates]
+            norm_dates = _detect_and_normalize_date_series(raw_dates)
             followup_series = pl.Series(norm_dates)
         else:
             followup_series = pl.Series([today_obj.strftime("%Y-%m-%d")] * len(df_p))
@@ -194,9 +271,17 @@ class OperationsReportModule:
             report_period_str = f"التاريخ: {today_obj.strftime('%Y-%m-%d')}"
             is_covered_expr = pl.Series([True] * len(df_p))
 
+        # تنظيف معرفات المديونية ورقم الهوية لحساب عدد العملاء
+        debt_expr = pl.col(debt_col_port).cast(pl.String).str.replace(r"\.0$", "", literal=False).str.strip_chars().alias("_clean_debt_id")
+        if cid_col_port and cid_col_port in df_p.columns:
+            cid_expr = pl.col(cid_col_port).cast(pl.String).str.replace(r"\.0$", "", literal=False).str.strip_chars().alias("_clean_cid")
+        else:
+            cid_expr = pl.col(debt_col_port).cast(pl.String).str.replace(r"\.0$", "", literal=False).str.strip_chars().alias("_clean_cid")
+
         df_p = df_p.with_columns([
             is_covered_expr.cast(pl.Int32).alias("_is_covered"),
-            pl.col(debt_col_port).cast(pl.String).str.replace(r"\.0$", "", literal=False).str.strip_chars().alias("_clean_debt_id")
+            debt_expr,
+            cid_expr
         ])
 
         # 4. معالجة شيت السدادات / التحصيل والربط بـ [رقم المديونية]
@@ -216,7 +301,7 @@ class OperationsReportModule:
                 # تصفية السدادات بتاريخ العملية إذا وُجد عمود تاريخ وكان متوفراً
                 if pmt_dt_col and pmt_dt_col in pmt_clean.columns:
                     raw_p_dates = pmt_clean[pmt_dt_col].to_list()
-                    norm_p_dates = [_normalize_date_val(d) for d in raw_p_dates]
+                    norm_p_dates = _detect_and_normalize_date_series(raw_p_dates)
                     pmt_clean = pmt_clean.with_columns(pl.Series("_pmt_date_norm", norm_p_dates))
 
                     if report_mode == "daily" and 'target_date_str' in locals():
@@ -239,13 +324,14 @@ class OperationsReportModule:
         df_p = df_p.with_columns(pl.Series("_row_paid_amount", mapped_pmts))
 
         # 5. التجميع لبناء التقرير التنفيذي المطلوب بالضبط
-        # الأعمدة: المشرف | المحصل | التغطية | مستهدف التغطية | نسبة التغطية % | التحصيل | مستهدف التحصيل | نسبة التحصيل %
+        # الأعمدة: المشرف | المحصل | التغطية (كعدد عملاء) | مستهدف التغطية | نسبة التغطية % | التحصيل | مستهدف التحصيل | نسبة التحصيل %
         grp_cols = [sup_col, col_col] if sup_col and sup_col in df_p.columns else [col_col]
 
         agg_summary = (
             df_p.group_by(grp_cols)
             .agg([
-                pl.col("_is_covered").sum().alias("التغطية"),
+                pl.col("_clean_cid").filter(pl.col("_is_covered") == 1).n_unique().alias("التغطية"),
+                pl.col("_clean_cid").n_unique().alias("إجمالي عملاء المحصل"),
                 pl.col("_row_paid_amount").sum().round(2).alias("التحصيل"),
                 pl.len().alias("إجمالي مديونيات المحصل")
             ])
