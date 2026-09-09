@@ -410,7 +410,7 @@ def run_afrad_app():
             "id": 9,
             "files": [
                 {"key": "portfolio", "label": "ملف المحفظة (.xlsx) *", "required": True},
-                {"key": "payments", "label": "ملف التحصيل / السدادات (.xlsx) *", "required": True}
+                {"key": "payments", "label": "ملف التحصيل / السدادات (.xlsx) (اختياري للتحصيل)", "required": False}
             ]
         },
         "electronic": {
@@ -510,7 +510,10 @@ def run_afrad_app():
         try:
             df = read_excel_calamine(file_path)
             from modules.module9_operations_report import OperationsReportModule
-            return OperationsReportModule.get_filter_options(df)
+            opts = OperationsReportModule.get_filter_options(df)
+            dates_info = OperationsReportModule.detect_available_dates(df)
+            opts["dates_info"] = dates_info
+            return opts
         except Exception as e:
             st.error(f"حدث خطأ أثناء فحص ملف العمليات: {e}")
             return {}
@@ -1116,6 +1119,16 @@ def run_afrad_app():
                     st.markdown("---")
                     st.markdown("### 🏢 إعدادات تقرير العمليات (التغطية والتحصيل)")
 
+                    dates_info = filter_options.get("dates_info", {})
+                    top_date_str = dates_info.get("top_date") or dates_info.get("latest_date")
+                    try:
+                        top_date_obj = datetime.strptime(top_date_str, "%Y-%m-%d").date() if top_date_str else datetime.today().date()
+                    except:
+                        top_date_obj = datetime.today().date()
+
+                    if top_date_str:
+                        st.info(f"💡 تم رصد **{len(dates_info.get('dates', []))}** تاريخ متابعة في المحفظة. اليوم الأكثر نشاطاً المقترح: **{top_date_str}**")
+
                     # 1. الفترة الزمنية
                     col_mode, _ = st.columns([3, 1])
                     with col_mode:
@@ -1129,27 +1142,27 @@ def run_afrad_app():
                     st.markdown("##### ⏱️ إعدادات الفترة الزمنية (بناءً على تاريخ المتابعة في المحفظة)")
                     if "Daily" in rep_type:
                         ops_params["report_mode"] = "daily"
-                        d_val = st.date_input("تاريخ التقرير اليومي:", datetime.today())
+                        d_val = st.date_input("تاريخ التقرير اليومي:", value=top_date_obj)
                         ops_params["target_date"] = d_val.strftime("%Y-%m-%d")
                     elif "Weekly" in rep_type:
                         ops_params["report_mode"] = "weekly"
                         w_cols = st.columns(2)
                         with w_cols[0]:
-                            s_val = st.date_input("تاريخ بداية الفترة:", datetime.today() - timedelta(days=6))
+                            s_val = st.date_input("تاريخ بداية الفترة:", value=top_date_obj - timedelta(days=6))
                         with w_cols[1]:
-                            e_val = st.date_input("تاريخ نهاية الفترة:", datetime.today())
+                            e_val = st.date_input("تاريخ نهاية الفترة:", value=top_date_obj)
                         ops_params["start_date"] = s_val.strftime("%Y-%m-%d")
                         ops_params["end_date"] = e_val.strftime("%Y-%m-%d")
                     elif "Monthly" in rep_type:
                         ops_params["report_mode"] = "monthly"
                         m_cols = st.columns(2)
-                        curr_y = datetime.today().year
-                        curr_m = datetime.today().month
+                        default_y = top_date_obj.year
+                        default_m = top_date_obj.month
                         with m_cols[0]:
-                            m_val = st.selectbox("الشهر:", options=list(range(1, 13)), index=curr_m - 1)
+                            m_val = st.selectbox("الشهر:", options=list(range(1, 13)), index=default_m - 1)
                         with m_cols[1]:
                             y_val = st.selectbox("السنة:", options=list(range(2023, 2031)),
-                                                 index=list(range(2023, 2031)).index(curr_y) if curr_y in range(2023, 2031) else 0)
+                                                 index=list(range(2023, 2031)).index(default_y) if default_y in range(2023, 2031) else 0)
                         ops_params["month"] = m_val
                         ops_params["year"] = y_val
 
