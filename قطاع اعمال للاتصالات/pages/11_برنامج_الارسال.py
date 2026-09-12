@@ -263,6 +263,7 @@ COL_EMAIL    = detect_col(df_src, ["ايميل الشركة", "ايميل الش
 COL_SERVICE_TYPE = detect_col(df_src, ["نوع الخدمة", "نوع الخدمه", "service_type"])
 COL_MAIN_PHONE   = detect_col(df_src, ["الرقم الرئيسي", "رقم رئيسي", "main_phone"])
 COL_COMPANY_EMAIL= detect_col(df_src, ["ايميل الشركة", "ايميل الشركه", "company_email"])
+COL_FOLLOWUP     = detect_col(df_src, ["المتابعة", "المتابعه", "تفاصيل المتابعة", "نتيجة المتابعة", "followup", "follow_up"])
 
 # التحقق من الأعمدة
 with st.expander("🔍 فحص وضبط أعمدة المحفظة المكتشفة", expanded=False):
@@ -386,9 +387,42 @@ if not is_sms_mode and COL_COMPANY_EMAIL and COL_COMPANY_EMAIL in df_filtered.co
     _ce = df_filtered[COL_COMPANY_EMAIL].astype(str).str.strip()
     df_filtered = df_filtered[~_ce.isin(['', 'nan', 'None', 'NaN', 'none'])]
 
+# ── استبعاد تلقائي للعملاء غير الصالحين (لا يخص / مقطوع / غير مستعمل) ──
+# يبص في كولوم المتابعة + الحالة الرئيسية + الفرعية ويحذف أي سطر يحتوي على هذه الكلمات
+_EXCLUDED_KEYWORDS = [
+    'لا يخص', 'لايخص',
+    'غير مستعمل', 'غيرمستعمل',
+    'مقطوع',
+    'لا يعمل', 'لايعمل',
+    'خارج الخدمة', 'خارج خدمة',
+    'رقم خاطئ', 'رقم مختلف',
+    'لا يخدم',
+]
+
+def _contains_excluded(val):
+    v = str(val).strip().lower()
+    return any(kw.lower() in v for kw in _EXCLUDED_KEYWORDS)
+
+_excl_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+# كولوم المتابعة (الأهم — هنا بالضبط بتتكتب الملاحظات)
+if COL_FOLLOWUP and COL_FOLLOWUP in df_filtered.columns:
+    _excl_mask |= df_filtered[COL_FOLLOWUP].apply(_contains_excluded)
+# الحالة الفرعية
+if COL_SUB_ST and COL_SUB_ST in df_filtered.columns and COL_SUB_ST != "(غير متوفر)":
+    _excl_mask |= df_filtered[COL_SUB_ST].apply(_contains_excluded)
+# الحالة الرئيسية
+if COL_MAIN_ST and COL_MAIN_ST in df_filtered.columns and COL_MAIN_ST != "(غير متوفر)":
+    _excl_mask |= df_filtered[COL_MAIN_ST].apply(_contains_excluded)
+
+_excluded_count = _excl_mask.sum()
+df_filtered = df_filtered[~_excl_mask]
+if _excluded_count > 0:
+    st.info(f"🚫 تم استبعاد **{_excluded_count:,} صف** تلقائياً (لا يخص / مقطوع / غير مستعمل).")
+
 # تنظيف الهوية
 df_filtered['_cid_clean'] = df_filtered[COL_CID].apply(clean_id)
 df_filtered = df_filtered[df_filtered['_cid_clean'] != ""]
+
 
 
 # ── تجميع المديونيات على مستوى رقم الهوية (منع تكرار العميل) ──
