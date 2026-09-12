@@ -150,7 +150,11 @@ def find_best_match(target_col, source_cols):
         'حصل': ['المحصل', 'اسم المحصل'],
         'جوال': ['رقم الجوال', 'الجوال', 'الهاتف', 'رقم التواصل', 'الموبايل', 'mobile', 'phone'],
         'ايميل': ['البريد الالكتروني', 'البريد الإلكتروني', 'الايميل', 'الإيميل', 'email'],
-        'حالة': ['الحالة الرئيسية', 'الحالة الفرعية', 'حالة الحساب']
+        'حالة': ['الحالة الرئيسية', 'الحالة الفرعية', 'حالة الحساب'],
+        'اجمالي': ['إجمالي مديونيات الهوية', 'إجمالي متبقي العميل', 'إجمالي متبقي السداد'],
+        'إجمالي': ['إجمالي مديونيات الهوية', 'إجمالي متبقي العميل', 'إجمالي متبقي السداد'],
+        'مجموع': ['إجمالي مديونيات الهوية', 'إجمالي متبقي العميل'],
+        'رئيسي': ['الرقم الرئيسي', 'ارقام العميل'],
     }
     for syn_key, cand_list in synonyms.items():
         if syn_key in t_clean:
@@ -201,7 +205,7 @@ if not source_file or not form_file:
     st.stop()
 
 @st.cache_data(show_spinner="⏳ جارٍ قراءة الملفين...")
-def load_data_file(file_bytes, file_name):
+def load_data_file(file_bytes, file_name, smart_header=False):
     buf = io.BytesIO(file_bytes)
     if file_name.endswith('.csv'):
         try: return pd.read_csv(buf, dtype=str, encoding='utf-8-sig')
@@ -209,14 +213,30 @@ def load_data_file(file_bytes, file_name):
             buf.seek(0)
             return pd.read_csv(buf, dtype=str, encoding='cp1256')
     else:
-        try: return pd.read_excel(buf, dtype=str, engine='openpyxl')
+        header_row = 0
+        if smart_header:
+            # الكشف الذكي عن صف الأعمدة الفعلي
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+                ws = wb.active
+                for idx, row in enumerate(ws.iter_rows(values_only=True), start=0):
+                    non_empty = [v for v in row if v is not None and str(v).strip() not in ('', 'None')]
+                    if len(non_empty) >= 2:
+                        header_row = idx
+                        break
+                wb.close()
+            except Exception:
+                header_row = 0
+        buf.seek(0)
+        try: return pd.read_excel(buf, dtype=str, engine='openpyxl', header=header_row)
         except:
             buf.seek(0)
-            return pd.read_excel(buf, dtype=str, engine='xlrd')
+            return pd.read_excel(buf, dtype=str, engine='xlrd', header=header_row)
 
 try:
     df_src  = load_data_file(source_file.getvalue(), source_file.name)
-    df_form = load_data_file(form_file.getvalue(), form_file.name)
+    df_form = load_data_file(form_file.getvalue(), form_file.name, smart_header=True)
 except Exception as e:
     st.error(f"❌ خطأ في قراءة الملفات: {e}")
     st.stop()
@@ -239,7 +259,10 @@ COL_SUB_ST   = detect_col(df_src, ["الحالة الفرعية", "sub_status"])
 COL_SERVICE  = detect_col(df_src, ["حالة الخدمة", "حالة الخط", "حالة الرقم", "الخدمة", "service_status"])
 COL_BRANCH   = detect_col(df_src, ["الفرع", "اسم الفرع", "branch"])
 COL_PHONE    = detect_col(df_src, ["رقم الجوال", "الجوال", "الهاتف", "رقم التواصل", "أرقام العميل", "phone", "mobile"])
-COL_EMAIL    = detect_col(df_src, ["البريد الالكتروني", "البريد الإلكتروني", "الايميل", "الإيميل", "email"])
+COL_EMAIL    = detect_col(df_src, ["ايميل الشركة", "ايميل الشركه", "البريد الالكتروني", "البريد الإلكتروني", "الايميل", "الإيميل", "email"])
+COL_SERVICE_TYPE = detect_col(df_src, ["نوع الخدمة", "نوع الخدمه", "service_type"])
+COL_MAIN_PHONE   = detect_col(df_src, ["الرقم الرئيسي", "رقم رئيسي", "main_phone"])
+COL_COMPANY_EMAIL= detect_col(df_src, ["ايميل الشركة", "ايميل الشركه", "company_email"])
 
 # التحقق من الأعمدة
 with st.expander("🔍 فحص وضبط أعمدة المحفظة المكتشفة", expanded=False):
@@ -257,7 +280,19 @@ with st.expander("🔍 فحص وضبط أعمدة المحفظة المكتشف�
         COL_PHONE   = st.selectbox("عمود الجوال", ["(غير متوفر)"] + df_src.columns.tolist(), index=df_src.columns.tolist().index(COL_PHONE)+1 if COL_PHONE else 0, key="sel_c_phone")
         COL_EMAIL   = st.selectbox("عمود الإيميل", ["(غير متوفر)"] + df_src.columns.tolist(), index=df_src.columns.tolist().index(COL_EMAIL)+1 if COL_EMAIL else 0, key="sel_c_email")
 
+# ── حساب كولوم "إجمالي مديونيات الهوية" على المحفظة كاملة (SUMIF بالضبط) ──
+# = مجموع كل متبقي السداد لنفس رقم الهوية عبر كل المحفظة
+_COL_TOTAL_KEY = 'إجمالي مديونيات الهوية'
+if COL_CID and COL_CID in df_src.columns and COL_REM_DOC and COL_REM_DOC in df_src.columns:
+    _rem_numeric = to_clean_num(df_src[COL_REM_DOC])
+    _cid_clean_tmp = df_src[COL_CID].apply(clean_id)
+    _total_map = _rem_numeric.groupby(_cid_clean_tmp).transform('sum')
+    df_src[_COL_TOTAL_KEY] = _total_map.round(2)
+else:
+    df_src[_COL_TOTAL_KEY] = 0.0
+
 # ── شاشة الفلاتر التفاعلية ──
+
 f_c1, f_c2 = st.columns(2)
 
 with f_c1:
@@ -285,6 +320,11 @@ with f_c2:
     # فلتر الفرع
     branch_list = sorted([str(b).strip() for b in df_src[COL_BRANCH].dropna().unique() if str(b).strip() not in ('', 'nan', 'None')]) if COL_BRANCH and COL_BRANCH in df_src.columns else []
     sel_branch = st.multiselect("🏢 الفرع (اختياري):", options=branch_list, key="f_branch") if branch_list else []
+
+    # فلتر نوع الخدمة
+    serv_type_list = sorted([str(s).strip() for s in df_src[COL_SERVICE_TYPE].dropna().unique() if str(s).strip() not in ('', 'nan', 'None')]) if COL_SERVICE_TYPE and COL_SERVICE_TYPE in df_src.columns else []
+    sel_serv_type = st.multiselect("📡 نوع الخدمة (اختياري):", options=serv_type_list, key="f_serv_type") if serv_type_list else []
+
 
 # فلتر متبقي السداد الموثق
 min_balance = st.number_input(
@@ -325,12 +365,31 @@ if sel_serv and COL_SERVICE and COL_SERVICE in df_filtered.columns:
 if sel_branch and COL_BRANCH and COL_BRANCH in df_filtered.columns:
     df_filtered = df_filtered[df_filtered[COL_BRANCH].astype(str).str.strip().isin(sel_branch)]
 
+# فلتر نوع الخدمة
+if sel_serv_type and COL_SERVICE_TYPE and COL_SERVICE_TYPE in df_filtered.columns:
+    df_filtered = df_filtered[df_filtered[COL_SERVICE_TYPE].astype(str).str.strip().isin(sel_serv_type)]
+
 if min_balance > 0:
     df_filtered = df_filtered[df_filtered['_rem_num'] >= min_balance]
+
+# ── فلترة الرقم الرئيسي (وضع SMS فقط): لازم يبقى موجود وغير مكرر بين العملاء ──
+if is_sms_mode and COL_MAIN_PHONE and COL_MAIN_PHONE in df_filtered.columns:
+    _mp = df_filtered[COL_MAIN_PHONE].astype(str).str.strip()
+    df_filtered = df_filtered[~_mp.isin(['', 'nan', 'None', 'NaN', 'none'])]
+    # في حال تكرار الرقم الرئيسي بين عملاء مختلفين نحتفظ بصاحب أعلى مديونية
+    df_filtered = df_filtered.sort_values('_rem_num', ascending=False).drop_duplicates(
+        subset=[COL_MAIN_PHONE], keep='first'
+    )
+
+# ── فلترة ايميل الشركة (وضع Email فقط): لازم يبقى موجود ──
+if not is_sms_mode and COL_COMPANY_EMAIL and COL_COMPANY_EMAIL in df_filtered.columns:
+    _ce = df_filtered[COL_COMPANY_EMAIL].astype(str).str.strip()
+    df_filtered = df_filtered[~_ce.isin(['', 'nan', 'None', 'NaN', 'none'])]
 
 # تنظيف الهوية
 df_filtered['_cid_clean'] = df_filtered[COL_CID].apply(clean_id)
 df_filtered = df_filtered[df_filtered['_cid_clean'] != ""]
+
 
 # ── تجميع المديونيات على مستوى رقم الهوية (منع تكرار العميل) ──
 def aggregate_customers(df):
@@ -498,6 +557,8 @@ if "رقم الهوية فريد تماماً" in debt_layout_mode and not df_to
     df_export_ready['عدد العملاء'] = 1
     df_export_ready['عدد مديونيات العميل'] = df_export_ready['_cid_clean'].map(counts_map)
     df_export_ready['إجمالي متبقي العميل'] = df_export_ready['_cid_clean'].map(tot_rem_map)
+    # ← SUMIF: إجمالي متبقي السداد لكل رقم هوية (مفيد لحقل الفورمة)
+    df_export_ready['إجمالي مديونيات الهوية'] = df_export_ready['_cid_clean'].map(tot_rem_map)
     
     # الحفاظ على ترتيب الأولوية
     cid_order = {cid: idx for idx, cid in enumerate(df_top_customers['_cid_clean'])}
@@ -510,9 +571,12 @@ elif "كل مديونية في سطر" in debt_layout_mode and not df_top_custom
     df_expanded = df_filtered[df_filtered['_cid_clean'].isin(target_cids)].copy()
     
     counts_series = df_expanded.groupby('_cid_clean')['_cid_clean'].transform('count')
+    tot_rem_series = df_expanded.groupby('_cid_clean')['_rem_num'].transform('sum')
     df_expanded['عدد مديونيات العميل'] = counts_series
     df_expanded['عدد العملاء'] = (1.0 / counts_series).apply(lambda v: 1 if v == 1.0 else round(v, 2))
-    df_expanded['إجمالي متبقي العميل'] = df_expanded.groupby('_cid_clean')['_rem_num'].transform('sum')
+    df_expanded['إجمالي متبقي العميل'] = tot_rem_series
+    # ← SUMIF: إجمالي متبقي السداد لكل رقم هوية (مفيد لحقل الفورمة)
+    df_expanded['إجمالي مديونيات الهوية'] = tot_rem_series
     
     cid_order = {cid: idx for idx, cid in enumerate(df_top_customers['_cid_clean'])}
     df_expanded['_sort_order'] = df_expanded['_cid_clean'].map(cid_order)
@@ -523,6 +587,8 @@ else:
     df_top_customers['عدد العملاء'] = 1
     df_top_customers['عدد مديونيات العميل'] = df_top_customers.get('عدد المديونيات', 1)
     df_top_customers['إجمالي متبقي العميل'] = df_top_customers.get('إجمالي متبقي السداد', 0.0)
+    # ← SUMIF: إجمالي متبقي السداد لكل رقم هوية (مفيد لحقل الفورمة)
+    df_top_customers['إجمالي مديونيات الهوية'] = df_top_customers.get('إجمالي متبقي السداد', 0.0)
     df_export_ready = df_top_customers.copy()
 
 # ══════════════════════════════════════════════════════
