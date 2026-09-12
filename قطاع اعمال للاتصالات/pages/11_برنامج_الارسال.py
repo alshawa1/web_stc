@@ -347,6 +347,15 @@ if COL_REM_DOC and COL_REM_DOC in df_filtered.columns:
 else:
     df_filtered['_rem_num'] = 0.0
 
+# ── [وضع Email — أول خطوة]: استبعاد كل صف ملوش إيميل شركة صالح ──
+if not is_sms_mode and COL_COMPANY_EMAIL and COL_COMPANY_EMAIL in df_filtered.columns:
+    _ce = df_filtered[COL_COMPANY_EMAIL].astype(str).str.strip()
+    _email_valid = _ce.str.contains('@', na=False) & ~_ce.isin(['', 'nan', 'None', 'NaN', 'none', '-', '#N/A', '#VALUE!'])
+    _email_dropped = int((~_email_valid).sum())
+    df_filtered = df_filtered[_email_valid]
+    if _email_dropped > 0:
+        st.info(f"📧 تم استبعاد **{_email_dropped:,} صف** لا يوجد لهم إيميل شركة صالح.")
+
 # تطبيق الفلاتر
 if sel_sups and COL_SUP != "(غير متوفر)":
     df_filtered = df_filtered[df_filtered[COL_SUP].astype(str).str.strip().isin(sel_sups)]
@@ -382,10 +391,6 @@ if is_sms_mode and COL_MAIN_PHONE and COL_MAIN_PHONE in df_filtered.columns:
         subset=[COL_MAIN_PHONE], keep='first'
     )
 
-# ── فلترة ايميل الشركة (وضع Email فقط): لازم يبقى موجود ──
-if not is_sms_mode and COL_COMPANY_EMAIL and COL_COMPANY_EMAIL in df_filtered.columns:
-    _ce = df_filtered[COL_COMPANY_EMAIL].astype(str).str.strip()
-    df_filtered = df_filtered[~_ce.isin(['', 'nan', 'None', 'NaN', 'none'])]
 
 # ── استبعاد تلقائي للعملاء غير الصالحين (لا يخص / مقطوع / غير مستعمل) ──
 # يبص في كولوم المتابعة + الحالة الرئيسية + الفرعية ويحذف أي سطر يحتوي على هذه الكلمات
