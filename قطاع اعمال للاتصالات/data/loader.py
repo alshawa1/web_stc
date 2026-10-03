@@ -39,14 +39,20 @@ def load_portfolio_file(uploaded_file) -> Dict[str, Any]:
     warnings_list = []
     try:
         if isinstance(uploaded_file, str) or hasattr(uploaded_file, 'read'):
-            xls = pd.ExcelFile(uploaded_file)
+            # calamine أسرع بكثير من openpyxl في القراءة (3-5x)
+            try:
+                xls = pd.ExcelFile(uploaded_file, engine='calamine')
+            except Exception:
+                xls = pd.ExcelFile(uploaded_file)
             sheet_names = xls.sheet_names
-            
+
             target_sheet = sheet_names[0]
             if 'XlsxTable' in sheet_names:
                 target_sheet = 'XlsxTable'
-            
-            df = pd.read_excel(xls, sheet_name=target_sheet)
+
+            # dtype=str يمنع pandas من تخمين الأنواع → أسرع بكثير
+            df = pd.read_excel(xls, sheet_name=target_sheet, dtype=str)
+            # تحويل الكولومات الرقمية يتم لاحقاً في cleaner
         else:
             raise ValueError("Invalid file object")
             
@@ -84,7 +90,10 @@ def load_portfolio_file(uploaded_file) -> Dict[str, Any]:
 def load_payment_file(uploaded_file) -> Dict[str, Any]:
     try:
         if isinstance(uploaded_file, str) or hasattr(uploaded_file, 'read'):
-            df = pd.read_excel(uploaded_file)
+            try:
+                df = pd.read_excel(uploaded_file, engine='calamine', dtype=str)
+            except Exception:
+                df = pd.read_excel(uploaded_file, dtype=str)
         else:
             raise ValueError("Invalid file object")
             
