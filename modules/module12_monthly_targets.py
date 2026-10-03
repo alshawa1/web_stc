@@ -18,6 +18,7 @@ import re
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any, Tuple
 import polars as pl
+import pandas as pd
 
 _log = logging.getLogger("STC_MONTHLY_TARGETS")
 
@@ -62,14 +63,25 @@ _RE_ISO_DATE = re.compile(r"^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})")
 
 
 def _extract_year_month(val: Any) -> Optional[Tuple[int, int]]:
-    """يستخرج (السنة, الشهر) من أي صيغة تاريخ."""
+    """يستخرج (السنة, الشهر) من أي صيغة تاريخ بدقة، بما في ذلك صيغ وأرقام إكسل التسلسلية."""
     if val is None:
         return None
     if isinstance(val, (datetime, date)):
         return (val.year, val.month)
     v = str(val).strip()
-    if not v or v in ("-", "None", "null", "nan"):
+    if not v or v in ("-", "None", "null", "nan", "NaT"):
         return None
+
+    # دعم تواريخ إكسل الرقمية (Serial Numbers)
+    try:
+        val_clean = v.replace(',', '')
+        if val_clean.replace('.', '', 1).isdigit():
+            val_float = float(val_clean)
+            if val_float > 30000:  # تاريخ إكسل صالح بعد سنة 1982
+                dt = pd.to_datetime(val_float, unit='D', origin='1899-12-30')
+                return (dt.year, dt.month)
+    except Exception:
+        pass
 
     m2 = _RE_ISO_DATE.match(v)
     if m2:
@@ -78,14 +90,23 @@ def _extract_year_month(val: Any) -> Optional[Tuple[int, int]]:
     m = _RE_US_DATE.match(v)
     if m:
         p1, p2, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if p1 > 12:
+        if p1 > 12:  # DD/MM/YYYY
             return (y, p2)
-        elif p2 > 12:
+        elif p2 > 12:  # MM/DD/YYYY
             return (y, p1)
         else:
-            return (y, p2)  # DD/MM/YYYY
+            return (y, p2)  # الوضع الافتراضي لملفاتنا DD/MM/YYYY
+
+    # محاولة عامة عبر pandas لمعالجة أي صيغة غير تقليدية
+    try:
+        dt = pd.to_datetime(v, errors='coerce', dayfirst=True)
+        if pd.notna(dt):
+            return (dt.year, dt.month)
+    except Exception:
+        pass
 
     return None
+
 
 
 class MonthlyTargetsModule:
@@ -152,21 +173,34 @@ class MonthlyTargetsModule:
         if not selected_months:
             raise ValueError("يرجى اختيار شهر واحد على الأقل لإنشاء التقرير!")
 
-        # 1. كشف الأعمدة الحيوية في المحفظة
-        port_debt_col = _detect(portfolio, _DEBT_COLS) or _detect(portfolio, _ID_COLS) or portfolio.columns[0]
-        sup_col       = _detect(portfolio, _SUPERVISOR_COLS)
-        col_col       = _detect(portfolio, _COLLECTOR_COLS)
+        # 1. كشف الأعمدة الحيوية والربط الذكي بين الملفين
+        # نبحث أولاً إذا كان كلاهما يحتوي على عمود مديونية، وإلا نستخدم عمود الهوية
+        port_has_debt = _detect(portfolio, _DEBT_COLS)
+        pmt_has_debt  = _detect(payments, _DEBT_COLS)
+        port_has_id   = _detect(portfolio, _ID_COLS)
+        pmt_has_id    = _detect(payments, _ID_COLS)
+
+        if port_has_debt and pmt_has_debt:
+            port_debt_col = port_has_debt
+            pmt_debt_col  = pmt_has_debt
+        elif port_has_id and pmt_has_id:
+            port_debt_col = port_has_id
+            pmt_debt_col  = pmt_has_id
+        else:
+            port_debt_col = port_has_debt or port_has_id or portfolio.columns[0]
+            pmt_debt_col  = pmt_has_debt or pmt_has_id or payments.columns[0]
+
+        sup_col = _detect(portfolio, _SUPERVISOR_COLS)
+        col_col = _detect(portfolio, _COLLECTOR_COLS)
 
         if not col_col:
             raise ValueError("لم يتم العثور على عمود المحصل في ملف المحفظة!")
 
-        # 2. كشف الأعمدة في السدادات
-        pmt_debt_col = _detect(payments, _DEBT_COLS) or _detect(payments, _ID_COLS)
-        pmt_amt_col  = _detect(payments, _PAYMENT_AMOUNT_COLS)
-        pmt_dt_col   = _detect(payments, _PAYMENT_DATE_COLS)
+        pmt_amt_col = _detect(payments, _PAYMENT_AMOUNT_COLS)
+        pmt_dt_col  = _detect(payments, _PAYMENT_DATE_COLS)
 
         if not pmt_debt_col:
-            raise ValueError("لم يتم العثور على عمود رقم المديونية في ملف السدادات!")
+            raise ValueError("لم يتم العثور على عمود رقم المديونية أو الهوية في ملف السدادات!")
         if not pmt_amt_col:
             raise ValueError("لم يتم العثور على عمود مبلغ السداد في ملف السدادات!")
 
@@ -220,14 +254,14 @@ class MonthlyTargetsModule:
         grp_cols = [sup_col, col_col] if sup_col and sup_col in df_p.columns else [col_col]
         unique_collectors_df = df_p.select(grp_cols).unique().sort(sup_col if sup_col and sup_col in df_p.columns else col_col)
 
-        # استخراج مديونيات كل محصل
-        col_debts_map: Dict[Tuple[str, str], List[str]] = {}
+        # استخراج مديونيات كل محصل (مع ضمان عدم تكرار رقم المديونية لنفس المحصل)
+        col_debts_map: Dict[Tuple[str, str], set] = {}
         for r in df_p.iter_rows(named=True):
             s_name = str(r.get(sup_col) or "-").strip() if sup_col else "-"
             c_name = str(r.get(col_col) or "").strip()
             did    = str(r["_clean_debt_id"]).strip()
             if c_name and did:
-                col_debts_map.setdefault((s_name, c_name), []).append(did)
+                col_debts_map.setdefault((s_name, c_name), set()).add(did)
 
         # تجهيز مسميات الأعمدة ومعلومات الشهور
         # إذا كان المفتاح "2026-07" نحصل على اسم "شهر 7"
