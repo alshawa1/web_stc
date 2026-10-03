@@ -706,11 +706,14 @@ if DIST_ACTIVE_COL and DIST_CID and DIST_DEBT_AMT and DIST_ACTIVE_COL in df_dist
     ).reset_index()
     dist_summary.columns = [GROUP_LABEL, 'عدد العملاء', 'إجمالي المديونية', 'تم التوصل', 'لا يرد ومغلق', 'عدم توصل - أخرى']
     dist_summary['إجمالي عدم التوصل'] = dist_summary['لا يرد ومغلق'] + dist_summary['عدم توصل - أخرى']
-    
-    total_cov = dist_summary['تم التوصل'] + dist_summary['إجمالي عدم التوصل']
-    dist_summary['نسبة تم التوصل %']   = (dist_summary['تم التوصل'] / total_cov * 100).round(1).fillna(0.0)
-    dist_summary['نسبة لا يرد ومغلق %'] = (dist_summary['لا يرد ومغلق'] / total_cov * 100).round(1).fillna(0.0)
-    dist_summary['نسبة عدم التوصل %']  = (dist_summary['إجمالي عدم التوصل'] / total_cov * 100).round(1).fillna(0.0)
+
+    # ── إصلاح: المقام = مجموع الثلاث فئات حتى تجمع النسب 100% بالضبط ──
+    _tot_all = (
+        dist_summary['تم التوصل'] + dist_summary['لا يرد ومغلق'] + dist_summary['عدم توصل - أخرى']
+    ).replace(0, float('nan'))
+    dist_summary['نسبة تم التوصل %']   = (dist_summary['تم التوصل'] / _tot_all * 100).round(1).fillna(0.0)
+    dist_summary['نسبة لا يرد ومغلق %'] = (dist_summary['لا يرد ومغلق'] / _tot_all * 100).round(1).fillna(0.0)
+    dist_summary['نسبة عدم التوصل %']  = (dist_summary['إجمالي عدم التوصل'] / _tot_all * 100).round(1).fillna(0.0)
 else:
     dist_summary = pd.DataFrame(columns=[GROUP_LABEL, 'عدد العملاء', 'إجمالي المديونية', 'تم التوصل', 'نسبة تم التوصل %', 'لا يرد ومغلق', 'نسبة لا يرد ومغلق %', 'إجمالي عدم التوصل', 'نسبة عدم التوصل %'])
 
@@ -770,16 +773,23 @@ for col in cols_order:
         total_coll_all = port_table['إجمالي التحصيل'].sum() if 'إجمالي التحصيل' in port_table.columns else 0
         total_row[col] = round(total_coll_all / total_debt_all * 100, 1) if total_debt_all > 0 else 0.0
     elif col == 'نسبة تم التوصل %':
-        tot_cnt = port_table['تم التوصل'].sum() if 'تم التوصل' in port_table.columns else 0
-        tot_all = (port_table['تم التوصل'].sum() + port_table['إجمالي عدم التوصل'].sum()) if 'تم التوصل' in port_table.columns and 'إجمالي عدم التوصل' in port_table.columns else 0
+        tot_cnt   = port_table['تم التوصل'].sum() if 'تم التوصل' in port_table.columns else 0
+        tot_no    = port_table['لا يرد ومغلق'].sum() if 'لا يرد ومغلق' in port_table.columns else 0
+        tot_oth   = port_table['عدم توصل - أخرى'].sum() if 'عدم توصل - أخرى' in port_table.columns else 0
+        tot_all   = tot_cnt + tot_no + tot_oth
         total_row[col] = round(tot_cnt / tot_all * 100, 1) if tot_all > 0 else 0.0
     elif col == 'نسبة لا يرد ومغلق %':
-        tot_no = port_table['لا يرد ومغلق'].sum() if 'لا يرد ومغلق' in port_table.columns else 0
-        tot_all = (port_table['تم التوصل'].sum() + port_table['إجمالي عدم التوصل'].sum()) if 'تم التوصل' in port_table.columns and 'إجمالي عدم التوصل' in port_table.columns else 0
+        tot_cnt   = port_table['تم التوصل'].sum() if 'تم التوصل' in port_table.columns else 0
+        tot_no    = port_table['لا يرد ومغلق'].sum() if 'لا يرد ومغلق' in port_table.columns else 0
+        tot_oth   = port_table['عدم توصل - أخرى'].sum() if 'عدم توصل - أخرى' in port_table.columns else 0
+        tot_all   = tot_cnt + tot_no + tot_oth
         total_row[col] = round(tot_no / tot_all * 100, 1) if tot_all > 0 else 0.0
     elif col == 'نسبة عدم التوصل %':
-        tot_uncnt = port_table['إجمالي عدم التوصل'].sum() if 'إجمالي عدم التوصل' in port_table.columns else 0
-        tot_all = (port_table['تم التوصل'].sum() + port_table['إجمالي عدم التوصل'].sum()) if 'تم التوصل' in port_table.columns and 'إجمالي عدم التوصل' in port_table.columns else 0
+        tot_cnt   = port_table['تم التوصل'].sum() if 'تم التوصل' in port_table.columns else 0
+        tot_no    = port_table['لا يرد ومغلق'].sum() if 'لا يرد ومغلق' in port_table.columns else 0
+        tot_oth   = port_table['عدم توصل - أخرى'].sum() if 'عدم توصل - أخرى' in port_table.columns else 0
+        tot_all   = tot_cnt + tot_no + tot_oth
+        tot_uncnt = port_table['إجمالي عدم التوصل'].sum() if 'إجمالي عدم التوصل' in port_table.columns else (tot_no + tot_oth)
         total_row[col] = round(tot_uncnt / tot_all * 100, 1) if tot_all > 0 else 0.0
     else:
         total_row[col] = port_table[col].sum() if pd.api.types.is_numeric_dtype(port_table[col]) else ''
