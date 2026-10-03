@@ -39,34 +39,34 @@ def run_afrad_app():
     # ─── إعدادات الصفحة ───
 
     # ════════════════════════════════════════════════════════════════════
-    #  CSS احترافي - هوية STC بالألوان الأرجوانية والتصميم الداكن
+    #  CSS كلاسيكي أنيق - وضوح تام ونصوص عالية التباين
     # ════════════════════════════════════════════════════════════════════
     st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
 
         /* ─── القواعد العامة ─── */
         html, body, [class*="css"], .stApp {
             font-family: 'Cairo', 'Segoe UI', sans-serif !important;
             direction: RTL;
             text-align: right;
-            background-color: #0d0e1a !important;
-            color: #e2e8f0 !important;
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
         }
 
-        /* ─── خلفية متدرجة للتطبيق ─── */
         .stApp {
-            background: radial-gradient(ellipse at top left, #1a0a2e 0%, #0d0e1a 60%) !important;
+            background-color: #f8fafc !important;
         }
 
         /* ─── الشريط الجانبي ─── */
         [data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #130b2b 0%, #0d0e1a 100%) !important;
-            border-left: 1px solid rgba(79, 45, 127, 0.4) !important;
+            background: #ffffff !important;
+            border-left: 1px solid #e2e8f0 !important;
         }
         [data-testid="stSidebar"] * {
             direction: RTL;
             text-align: right;
+            color: #1e293b !important;
         }
 
         /* ─── شريط التنقل في Sidebar ─── */
@@ -79,226 +79,172 @@ def run_afrad_app():
             font-size: 14px;
             padding: 8px 12px;
             border-radius: 8px;
-            transition: background 0.2s;
+            color: #334155 !important;
+            transition: background 0.2s, color 0.2s;
         }
         .stRadio > div > label:hover {
-            background: rgba(79, 45, 127, 0.2) !important;
+            background: #f1f5f9 !important;
+            color: #0f172a !important;
         }
 
         /* ─── الكروت والمناطق ─── */
         [data-testid="metric-container"] {
-            background: rgba(79, 45, 127, 0.12) !important;
-            border: 1px solid rgba(79, 45, 127, 0.35) !important;
-            border-radius: 14px;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 12px;
             padding: 16px 20px;
-            box-shadow: 0 4px 20px rgba(79, 45, 127, 0.15);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
             transition: transform 0.2s, box-shadow 0.2s;
         }
         [data-testid="metric-container"]:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 30px rgba(79, 45, 127, 0.25);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
         [data-testid="stMetricValue"] {
-            color: #c084fc !important;
-            font-weight: 700;
-            font-size: 22px;
+            color: #0f172a !important;
+            font-weight: 900;
+            font-size: 24px;
         }
         [data-testid="stMetricLabel"] {
-            color: #a78bfa !important;
+            color: #475569 !important;
             font-size: 13px;
+            font-weight: 700;
         }
 
         /* ─── أزرار ─── */
         .stButton > button {
-            background: linear-gradient(135deg, #4f2d7f 0%, #7c3aed 100%) !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 10px;
+            background: #ffffff !important;
+            color: #1e293b !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px;
             font-weight: 700 !important;
-            font-size: 15px;
-            padding: 10px 24px;
-            transition: all 0.25s !important;
-            box-shadow: 0 4px 15px rgba(124, 58, 237, 0.35);
+            font-size: 14px;
+            padding: 8px 20px;
+            transition: all 0.2s !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         .stButton > button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5) !important;
+            background: #f1f5f9 !important;
+            border-color: #94a3b8 !important;
+            color: #0f172a !important;
         }
-        .stButton > button:active {
-            transform: translateY(0px) !important;
+        .stButton > button[kind="primary"] {
+            background: #1e293b !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            background: #0f172a !important;
+            color: #ffffff !important;
         }
 
         /* ─── زر التحميل ─── */
         .stDownloadButton > button {
-            background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important;
+            background: #059669 !important;
             color: white !important;
             border: none !important;
-            border-radius: 10px;
+            border-radius: 8px;
             font-weight: 700 !important;
-            font-size: 15px;
-            box-shadow: 0 4px 15px rgba(5, 150, 105, 0.35) !important;
-            transition: all 0.25s !important;
+            font-size: 14px;
+            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2) !important;
+            transition: all 0.2s !important;
         }
         .stDownloadButton > button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 25px rgba(5, 150, 105, 0.5) !important;
+            background: #047857 !important;
+            color: white !important;
         }
 
         /* ─── حقل الإدخال والقوائم ─── */
         .stTextInput input, .stSelectbox select, .stMultiSelect,
         [data-testid="stTextInput"] input {
-            background: rgba(79, 45, 127, 0.1) !important;
-            border: 1px solid rgba(79, 45, 127, 0.4) !important;
-            border-radius: 10px !important;
-            color: #e2e8f0 !important;
+            background: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            color: #0f172a !important;
             direction: RTL !important;
         }
         .stTextInput input:focus, [data-testid="stTextInput"] input:focus {
-            border-color: #7c3aed !important;
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2) !important;
+            border-color: #475569 !important;
+            box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.15) !important;
         }
 
         /* ─── الخطوط الفاصلة ─── */
         hr {
-            border-color: rgba(79, 45, 127, 0.3) !important;
+            border-color: #e2e8f0 !important;
         }
 
         /* ─── رسائل النجاح والخطأ ─── */
         .stSuccess {
-            background: rgba(5, 150, 105, 0.1) !important;
-            border: 1px solid rgba(5, 150, 105, 0.3) !important;
-            border-radius: 10px;
+            background: #ecfdf5 !important;
+            border: 1px solid #a7f3d0 !important;
+            border-radius: 8px;
+            color: #065f46 !important;
         }
         .stError {
-            background: rgba(220, 38, 38, 0.1) !important;
-            border: 1px solid rgba(220, 38, 38, 0.3) !important;
-            border-radius: 10px;
+            background: #fef2f2 !important;
+            border: 1px solid #fecaca !important;
+            border-radius: 8px;
+            color: #991b1b !important;
         }
         .stInfo {
-            background: rgba(79, 45, 127, 0.12) !important;
-            border: 1px solid rgba(79, 45, 127, 0.3) !important;
-            border-radius: 10px;
+            background: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px;
+            color: #1e293b !important;
         }
         .stWarning {
-            background: rgba(217, 119, 6, 0.1) !important;
-            border: 1px solid rgba(217, 119, 6, 0.3) !important;
-            border-radius: 10px;
-        }
-
-        /* ─── حاوية الدردشة مع الـ AI ─── */
-        .chat-bubble-user {
-            background: rgba(79, 45, 127, 0.25);
-            border: 1px solid rgba(124, 58, 237, 0.4);
-            border-radius: 16px 16px 4px 16px;
-            padding: 12px 16px;
-            margin: 8px 0;
-            font-size: 14px;
-            direction: RTL;
-        }
-        .chat-bubble-ai {
-            background: rgba(15, 23, 42, 0.7);
-            border: 1px solid rgba(79, 45, 127, 0.3);
-            border-radius: 16px 16px 16px 4px;
-            padding: 14px 18px;
-            margin: 8px 0;
-            font-size: 14px;
-            direction: RTL;
-            line-height: 1.8;
-        }
-        .chat-avatar-ai {
-            width: 28px; height: 28px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #4f2d7f, #7c3aed);
-            display: inline-flex; align-items: center; justify-content: center;
-            font-size: 12px; margin-left: 8px;
+            background: #fffbeb !important;
+            border: 1px solid #fde68a !important;
+            border-radius: 8px;
+            color: #92400e !important;
         }
 
         /* ─── عنوان بطاقة الـ AI ─── */
         .ai-header-card {
-            background: linear-gradient(135deg, rgba(79,45,127,0.3) 0%, rgba(124,58,237,0.15) 100%);
-            border: 1px solid rgba(124, 58, 237, 0.4);
-            border-radius: 16px;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
             padding: 20px 24px;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
             direction: RTL;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
-        /* ─── شاشة كلمة المرور ─── */
-        .login-card {
-            background: linear-gradient(135deg, rgba(79,45,127,0.25) 0%, rgba(30,10,60,0.8) 100%);
-            border: 1px solid rgba(124, 58, 237, 0.5);
-            border-radius: 24px;
-            padding: 48px 40px;
-            max-width: 480px;
-            margin: 60px auto;
-            box-shadow: 0 20px 60px rgba(79, 45, 127, 0.4);
-            direction: RTL;
-            text-align: center;
-        }
-
-        /* ─── عنوان STC ─── */
-        .stc-logo-text {
-            font-size: 52px;
-            font-weight: 900;
-            background: linear-gradient(135deg, #a855f7, #7c3aed, #4f2d7f);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: 2px;
-            line-height: 1;
-        }
-        .stc-tagline {
-            color: #a78bfa;
-            font-size: 15px;
-            margin-top: 4px;
-        }
-
-        /* ─── شريط الفصل الأرجواني ─── */
+        /* ─── شريط الفصل الكلاسيكي ─── */
         .purple-divider {
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #7c3aed, #a855f7, #7c3aed, transparent);
-            border-radius: 3px;
-            margin: 12px 0;
-        }
-
-        /* ─── Spinner Shimmer ─── */
-        @keyframes shimmer {
-            0% { background-position: -200% center; }
-            100% { background-position: 200% center; }
-        }
-        .loading-text {
-            background: linear-gradient(90deg, #4f2d7f, #a855f7, #4f2d7f);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: shimmer 2s linear infinite;
+            height: 1px;
+            background: #cbd5e1;
+            margin: 14px 0;
         }
 
         /* ─── DataFrames ─── */
         [data-testid="stDataFrame"] {
-            border-radius: 12px;
+            border-radius: 8px;
             overflow: hidden;
-            border: 1px solid rgba(79, 45, 127, 0.3);
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
         }
 
         /* ─── File Uploader ─── */
         [data-testid="stFileUploader"] {
-            background: rgba(79, 45, 127, 0.08) !important;
-            border: 2px dashed rgba(124, 58, 237, 0.4) !important;
-            border-radius: 14px !important;
-            padding: 12px;
+            background: #ffffff !important;
+            border: 1px dashed #94a3b8 !important;
+            border-radius: 10px !important;
+            padding: 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.02);
             transition: border-color 0.2s, background 0.2s;
         }
         [data-testid="stFileUploader"]:hover {
-            border-color: rgba(124, 58, 237, 0.7) !important;
-            background: rgba(79, 45, 127, 0.14) !important;
+            border-color: #475569 !important;
+            background: #f8fafc !important;
         }
 
         /* ─── RTL كامل ─── */
         .stMarkdown, .stSelectbox, .stFileUploader, .stButton,
-        .stMultiSelect, .stDateInput, .stTextArea, p, label {
+        .stMultiSelect, .stDateInput, .stTextArea, p, label, h1, h2, h3, h4, h5 {
             direction: RTL;
             text-align: right !important;
+            color: #0f172a;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -582,19 +528,10 @@ def run_afrad_app():
 
 
     # ════════════════════════════════════════════════════════════════════
-    #  الشريط الجانبي - STC Header + Navigation
+    #  الشريط الجانبي - قائمة البرامج المتاحة
     # ════════════════════════════════════════════════════════════════════
     with st.sidebar:
-        # شعار STC
-        st.markdown("""
-        <div style="text-align:center; padding: 20px 0 10px 0;">
-            <div class="stc-logo-text">STC</div>
-            <div class="stc-tagline">Operations AI Copilot</div>
-            <div class="purple-divider"></div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<p style='color:#a78bfa; font-size:13px; text-align:center; margin-bottom:12px;'>⚙️ البرامج المتاحة</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#1e3a8a; font-weight:800; font-size:14px; text-align:right; margin-bottom:8px;'>⚙️ برامج قطاع الأفراد:</p>", unsafe_allow_html=True)
 
         selected_key = st.radio(
             label="اختر البرنامج:",
@@ -604,21 +541,6 @@ def run_afrad_app():
         )
 
         st.markdown("<div class='purple-divider'></div>", unsafe_allow_html=True)
-
-        # زر تسجيل الخروج
-        if st.button("🔒 تسجيل الخروج", use_container_width=True):
-            st.session_state.authenticated = False
-            st.session_state.pop("ai_portfolio_df", None)
-            st.session_state.pop("ai_payments_df", None)
-            st.session_state.pop("chat_history", None)
-            st.session_state.pop("ai_supervisors", None)
-            st.rerun()
-
-        st.markdown("""
-        <div style='text-align:center; margin-top:20px; color:#475569; font-size:11px;'>
-            STC Operations © 2026<br>جميع الحقوق محفوظة
-        </div>
-        """, unsafe_allow_html=True)
 
 
     # ════════════════════════════════════════════════════════════════════
@@ -631,15 +553,15 @@ def run_afrad_app():
         st.markdown("""
         <div class="ai-header-card">
             <div style="display:flex; align-items:center; gap:16px; flex-direction:row-reverse;">
-                <div style="font-size:48px; line-height:1;">🤖</div>
+                <div style="font-size:44px; line-height:1;">🤖</div>
                 <div>
-                    <div style="font-size:24px; font-weight:800; color:#e2e8f0;">
+                    <div style="font-size:24px; font-weight:900; color:#0f172a;">
                         AI Operations Copilot
                     </div>
-                    <div style="color:#a78bfa; font-size:14px; margin-top:4px;">
+                    <div style="color:#475569; font-size:14px; font-weight:600; margin-top:4px;">
                         مساعد الذكاء الاصطناعي لقسم العمليات — يفهم بياناتك ويجيب عن أي سؤال
                     </div>
-                    <div class="purple-divider" style="margin:10px 0 0 0; width:200px;"></div>
+                    <div class="purple-divider" style="margin:10px 0 0 0; width:180px;"></div>
                 </div>
             </div>
         </div>
@@ -647,7 +569,7 @@ def run_afrad_app():
     else:
         st.markdown(f"""
         <div style="padding: 16px 0 8px 0;">
-            <h2 style="color:#c084fc; font-weight:800; margin-bottom:4px;">{module_info['name']}</h2>
+            <h2 style="color:#0f172a; font-weight:900; margin-bottom:4px;">{module_info['name']}</h2>
             <div class="purple-divider" style="width:120px;"></div>
         </div>
         """, unsafe_allow_html=True)
