@@ -248,4 +248,3 @@ if st.session_state.sector == "افراد":
 elif st.session_state.sector == "اعمال":
     import اعمال_app
     اعمال_app.run_aamal_app()
-
