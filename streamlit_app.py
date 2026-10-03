@@ -14,102 +14,87 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 🎨 DESIGN SYSTEM & LIGHT THEME STYLES (RTL - CAIRO)
+# 🎨 DESIGN SYSTEM & CLASSIC PROFESSIONAL THEME (RTL - CAIRO)
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
     
     html, body, [class*="css"], .stApp {
         font-family: 'Cairo', sans-serif !important;
         direction: RTL;
-        background-color: #f4f6fb !important;
-        color: #1e293b !important;
+        background-color: #f8fafc !important;
+        color: #0f172a !important;
     }
     
     .stApp {
-        background: radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.05) 0%, transparent 40%),
-                    radial-gradient(circle at 90% 90%, rgba(14, 165, 233, 0.06) 0%, transparent 40%),
-                    #f8fafc !important;
+        background-color: #f8fafc !important;
     }
     
-    /* Global Sidebar Light Styling */
+    /* Classic Sidebar Styling */
     [data-testid="stSidebar"] {
         background: #ffffff !important;
         border-left: 1px solid #e2e8f0 !important;
-        box-shadow: -4px 0 20px rgba(0, 0, 0, 0.02) !important;
     }
-    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-    [data-testid="stSidebar"] span {
-        color: #334155 !important;
+    [data-testid="stSidebar"] * {
+        color: #1e293b !important;
     }
     
     .login-wrapper {
         display: flex;
         justify-content: center;
         align-items: center;
-        padding-top: 35px;
+        padding-top: 45px;
         padding-bottom: 25px;
     }
     
     .login-card {
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 24px;
-        padding: 45px 40px;
+        border: 1px solid #cbd5e1;
+        border-radius: 16px;
+        padding: 40px 36px;
         max-width: 480px;
         width: 100%;
         text-align: center;
-        box-shadow: 0 15px 35px -5px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
     
     .brand-badge {
         display: inline-block;
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        border: 1px solid #bfdbfe;
-        color: #1d4ed8;
-        padding: 6px 18px;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        color: #475569;
+        padding: 4px 16px;
         border-radius: 20px;
         font-size: 13px;
-        font-weight: 800;
+        font-weight: 700;
         margin-bottom: 14px;
-        letter-spacing: 0.5px;
     }
     
     .logo-text {
-        font-size: 40px;
+        font-size: 34px;
         font-weight: 900;
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #0284c7 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        line-height: 1.2;
-        margin-bottom: 4px;
-    }
-    
-    .subtitle {
-        color: #475569;
-        font-size: 20px;
-        font-weight: 800;
-        margin-top: 2px;
+        color: #0f172a;
+        line-height: 1.3;
         margin-bottom: 6px;
     }
     
-    .sub-tagline {
-        color: #0284c7;
-        font-size: 15px;
-        font-weight: 700;
-        margin-bottom: 18px;
-        background: #f0f9ff;
+    .subtitle {
+        color: #334155;
+        font-size: 18px;
+        font-weight: 800;
+        margin-top: 0;
+        margin-bottom: 14px;
         display: inline-block;
-        padding: 3px 14px;
-        border-radius: 12px;
-        border: 1px solid #bae6fd;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        padding: 4px 18px;
+        border-radius: 8px;
     }
     
-    .light-divider {
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #2563eb, #38bdf8, transparent);
-        border-radius: 2px;
-        margin: 20px 0;
+    .classic-divider {
+        height: 1px;
+        background: #e2e8f0;
+        margin: 18px 0;
     }
     
     .sector-chips {
@@ -120,36 +105,35 @@ st.markdown("""
     }
     
     .chip {
-        background: #f1f5f9;
+        background: #f8fafc;
         border: 1px solid #cbd5e1;
         padding: 7px 16px;
-        border-radius: 12px;
+        border-radius: 8px;
         font-size: 13px;
         font-weight: 700;
         color: #334155;
     }
     
     .sidebar-logo-card {
-        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-        border: 1px solid #cbd5e1;
-        border-radius: 16px;
-        padding: 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
         text-align: center;
         margin-bottom: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     
     .sidebar-logo-title {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 900;
-        color: #1e3a8a;
+        color: #0f172a;
         margin-bottom: 2px;
     }
     
     .sidebar-logo-sub {
-        font-size: 13px;
-        font-weight: 700;
-        color: #0284c7;
+        font-size: 14px;
+        font-weight: 800;
+        color: #475569;
     }
     
     .footer {
@@ -159,21 +143,41 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Input & Button Styling for Light Theme */
+    /* Input & Button Styling */
     .stTextInput > div > div > input {
         background-color: #ffffff !important;
         border: 1px solid #cbd5e1 !important;
-        color: #1e293b !important;
-        border-radius: 12px !important;
-        padding: 10px 16px !important;
+        color: #0f172a !important;
+        border-radius: 8px !important;
+        padding: 10px 14px !important;
+        font-size: 14px !important;
     }
     .stTextInput > div > div > input:focus {
-        border-color: #2563eb !important;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+        border-color: #475569 !important;
+        box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.15) !important;
     }
     .stButton > button {
-        border-radius: 12px !important;
+        border-radius: 8px !important;
         font-weight: 700 !important;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.2s !important;
+    }
+    .stButton > button:hover {
+        background: #f1f5f9 !important;
+        border-color: #94a3b8 !important;
+        color: #0f172a !important;
+    }
+    .stButton > button[kind="primary"] {
+        background: #1e293b !important;
+        color: #ffffff !important;
+        border: none !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: #0f172a !important;
+        color: #ffffff !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -190,10 +194,10 @@ if not st.session_state.authenticated:
         st.markdown("""
             <div class="login-wrapper">
                 <div class="login-card">
-                    <div class="brand-badge">⭐ PLATFORM 2026</div>
+                    <div class="brand-badge">⭐ نظام التحصيل الموحد</div>
                     <div class="logo-text">شركة مهاره للتحصيل</div>
                     <div class="subtitle">stc #1</div>
-                    <div class="light-divider"></div>
+                    <div class="classic-divider"></div>
                     <div class="sector-chips">
                         <div class="chip">👥 قطاع الأفراد</div>
                         <div class="chip">🏢 قطاع الأعمال</div>
