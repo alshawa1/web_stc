@@ -484,4 +484,3 @@ if 'filled_result_df' in st.session_state and 'filled_excel_bytes' in st.session
     st.markdown("---")
     st.markdown(f"#### 📋 معاينة البيانات المعبأة (أول 50 صف):")
     st.dataframe(df_out.head(50), use_container_width=True)
-
